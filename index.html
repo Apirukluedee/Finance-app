@@ -22,9 +22,9 @@ body{
 
 /* ── DESKTOP: 2 column fixed height ── */
 @media(min-width:700px){
-body{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-#hdr{flex-shrink:0;}
-#body{flex:1;display:flex;overflow:hidden;}
+body{display:block;}
+#hdr{position:sticky;top:0;z-index:100;}
+#body{display:flex;height:calc(100vh - 52px);overflow:hidden;}
 #sidebar{width:270px;flex-shrink:0;overflow-y:auto;border-right:1.5px solid var(–border);background:var(–surface);padding:12px;}
 #main{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
 .mob-only{display:none!important;}
