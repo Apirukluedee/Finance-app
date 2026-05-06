@@ -32,38 +32,92 @@ body{display:block;}
 
 /* ── MOBILE: normal scroll page ── */
 @media(max-width:699px){
-#sidebar{display:none;}
-#sidebar.show{
-display:block;
-position:fixed;top:0;left:0;right:0;bottom:0;
-z-index:200;background:var(–surface);
-overflow-y:auto;-webkit-overflow-scrolling:touch;
-padding-top:0;
-}
-#main{padding:10px;display:flex;flex-direction:column;gap:10px;}
-.desk-only{display:none!important;}
-#hdr{position:sticky;top:0;z-index:100;}
-}
 
-/* HEADER */
-#hdr{
-background:var(–card);border-bottom:1.5px solid var(–border);
-padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-box-shadow:0 2px 6px var(–sh);
-}
-#hdr h1{font-family:‘Kanit’,sans-serif;font-size:17px;font-weight:700;flex:1;min-width:120px;}
-.hbtns{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  body{
+    overflow-x:hidden;
+  }
 
-/* Sidebar close bar — mobile only */
-.sb-topbar{
-display:none;
-background:var(–ink);color:#fff;
-padding:14px 16px;
-font-family:‘Kanit’,sans-serif;font-size:15px;font-weight:700;
-align-items:center;justify-content:space-between;
-position:sticky;top:0;z-index:10;cursor:pointer;
+  #body{
+    display:block;
+  }
+
+  #main{
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    width:100%;
+  }
+
+  /* ซ่อน sidebar ไว้ก่อน */
+  #sidebar{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    height:78vh;
+
+    background:#fffdf7;
+
+    border-radius:18px 18px 0 0;
+
+    box-shadow:0 -8px 28px rgba(0,0,0,.22);
+
+    z-index:999;
+
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+
+    transform:translateY(110%);
+    transition:transform .25s ease;
+
+    padding-bottom:40px;
+  }
+
+  /* ตอนเปิด */
+  #sidebar.show{
+    transform:translateY(0);
+  }
+
+  /* ปุ่มเมนูมือถือ */
+  .mob-only{
+    display:inline-flex !important;
+  }
+
+  .desk-only{
+    display:none !important;
+  }
+
+  /* กันปฏิทินล้น */
+  .cal-wrap{
+    width:100%;
+    overflow-x:auto;
+  }
+
+  .cal-grid{
+    min-width:100%;
+  }
+
+  /* กัน strip ล้น */
+  .strip{
+    grid-template-columns:repeat(3,1fr);
+  }
+
+  /* top bar */
+  .sb-topbar{
+    display:flex;
+    position:sticky;
+    top:0;
+
+    background:#1c1810;
+    color:#fff;
+
+    padding:14px 16px;
+
+    z-index:5;
+  }
+
 }
-@media(max-width:699px){.sb-topbar{display:flex;}}
 
 /* Sidebar content padding */
 .sb-content{padding:12px;}
