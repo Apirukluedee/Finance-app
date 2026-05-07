@@ -11,7 +11,7 @@
   --bg:#f5f0e8;--card:#fff;--surface:#fffdf7;--border:#e0d8c8;--border2:#ccc4b0;
   --ink:#1c1810;--ink2:#4a4030;--muted:#8a7e6a;
   --cr:#c0392b;--re:#8e44ad;--st:#d35400;--mi:#16a085;
-  --gr:#27ae60;--ye:#e67e22;--bl:#2980b9;--sh:reba(0,0,0,.08);
+  --gr:#27ae60;--ye:#e67e22;--bl:#2980b9;--sh:rgba(0,0,0,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{
@@ -207,6 +207,34 @@ body{
 .dd-item:last-child{border-bottom:none;}
 .dd-item:hover,.dd-item:active{background:var(--bg);}
 
+
+/* ── MOBILE MENU FIX: กันเมนูซ้อน/กันพื้นหลังเลื่อน ── */
+@media(max-width:699px){
+  html,body{width:100%;max-width:100%;overflow-x:hidden;}
+  #hdr{z-index:4000!important;}
+  #body,#main{width:100%;max-width:100%;overflow-x:hidden;}
+  #main{padding-bottom:96px!important;}
+  #sidebar{
+    display:flex!important;
+    position:fixed!important;
+    left:0!important;right:0!important;bottom:0!important;top:auto!important;
+    width:100%!important;max-width:100%!important;height:78vh!important;max-height:78vh!important;
+    z-index:5000!important;
+    transform:translateY(110%)!important;
+    transition:transform .25s ease!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain;
+  }
+  #sidebar.show{transform:translateY(0)!important;}
+  body.menu-open{overflow:hidden!important;touch-action:none;}
+  body.menu-open::before{
+    content:"";position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:4999;
+  }
+  #sidebar.show{box-shadow:0 -10px 34px rgba(0,0,0,.32)!important;}
+  .sb-topbar{z-index:5001!important;}
+  .overlay{z-index:7000!important;}
+}
+
 @media print{
   #hdr .hbtns,#sidebar{display:none!important;}
   #body,body{display:block!important;height:auto!important;overflow:visible!important;}
@@ -259,7 +287,6 @@ body{
       <button class="stab" onclick="showStab('misc',this)">💸 อื่นๆ</button>
     </div>
 
-```
 <!-- INCOME -->
 <div class="stab-pane active" id="pane-income">
   <div class="ff"><label>วันที่</label><input type="number" id="iDay" placeholder="1–31" min="1" max="31"></div>
@@ -327,7 +354,6 @@ body{
   <button class="btn bt btn-full" onclick="addMisc()">+ บันทึกค่าใช้จ่าย</button>
   <div style="margin-top:8px" id="miscList"></div>
 </div>
-```
 
   </div>
 
@@ -444,29 +470,23 @@ body{
 <script>
 // ── STATE ──
 let cy=new Date().getFullYear(), cm=new Date().getMonth(), selDay=null, scanData=null;
+let credits=[], rents=[], stocks=[], miscs=[], income={}, paid={};
+let isBooting=true;
 
+// localStorage ใช้เป็น backup เท่านั้น ไม่ใช้เป็นแหล่งข้อมูลหลักตอนเปิดแอป
 function ls(k,d){try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}}
 function ss(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
-
-function lsGet(key,def){
-  const keys=[key,key.replace('fc_','fc2_'),key.replace('fc_','fc3_')];
-  for(const k of keys){
-    const raw=localStorage.getItem(k);
-    if(raw!==null){try{const p=JSON.parse(raw);if(k!==key)ss(key,p);return p;}catch(e){}}
-  }
-  return def;
-}
-
-let credits=lsGet('fc_credits',[]);
-let rents  =lsGet('fc_rents',[]);
-let stocks =lsGet('fc_stocks',[]);
-let miscs  =lsGet('fc_miscs',[]);
-let income =lsGet('fc_income',{});
-let paid   =lsGet('fc_paid',{});
-
-function saveAll(){
+function persistLocal(){
   ss('fc_credits',credits);ss('fc_rents',rents);ss('fc_stocks',stocks);
   ss('fc_miscs',miscs);ss('fc_income',income);ss('fc_paid',paid);
+}
+function applyData(d){
+  credits=Array.isArray(d?.credits)?d.credits:[];
+  rents=Array.isArray(d?.rents)?d.rents:[];
+  stocks=Array.isArray(d?.stocks)?d.stocks:[];
+  miscs=Array.isArray(d?.miscs)?d.miscs:[];
+  income=(d?.income&&typeof d.income==='object')?d.income:{};
+  paid=(d?.paid&&typeof d.paid==='object')?d.paid:{};
 }
 
 // ── EXPORT / IMPORT ──
@@ -523,8 +543,15 @@ function showStab(name,btn){
 }
 
 // ── SIDEBAR MOBILE ──
-function toggleSidebar(){document.getElementById('sidebar').classList.toggle('show');}
-function closeSidebar(){document.getElementById('sidebar').classList.remove('show');}
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  sb.classList.toggle('show');
+  document.body.classList.toggle('menu-open',sb.classList.contains('show'));
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('show');
+  document.body.classList.remove('menu-open');
+}
 
 // ── INCOME ──
 function addIncome(){
@@ -1011,18 +1038,21 @@ function updateDataLists(){
 // ── SUPABASE CONFIG ──
 const SB_URL = 'https://mlylhaimwflhgmtrrxax.supabase.co';
 const SB_KEY = 'sb_publishable_dRDCZp3Yu3UIdbNv4YQomg_2dVv_cE8';
+const SB_TABLE = 'finance_data';
+const SB_ID = 'main';
 
-function sbHeaders(){
+function sbHeaders(extra={}){
   return {
     'Content-Type':'application/json',
     'apikey': SB_KEY,
     'Authorization': 'Bearer ' + SB_KEY,
-    'Prefer': 'return=minimal'
+    ...extra
   };
 }
 
 function showSyncBar(msg, color){
   const bar = document.getElementById('syncBar');
+  if(!bar)return;
   bar.style.display = 'block';
   bar.style.background = color || '#3ecf8e';
   bar.style.color = '#fff';
@@ -1030,137 +1060,96 @@ function showSyncBar(msg, color){
   if(color !== '#e74c3c') setTimeout(()=>{ bar.style.display='none'; }, 3000);
 }
 
-async function syncData(){
-  const btn = document.getElementById('syncBtn');
-  btn.textContent = '⏳ กำลัง Sync...';
-  btn.disabled = true;
-  try {
-    // ดึงข้อมูลจาก Supabase ก่อน
-    const getRes = await fetch(SB_URL + '/rest/v1/finance_data?id=eq.main', {
-      headers: sbHeaders()
-    });
-    const rows = await getRes.json();
-    
-    if(rows && rows.length > 0){
-      const remote = rows[0];
-      const remoteTime = new Date(remote.updated_at).getTime();
-      
-      // เปรียบเทียบเวลา — ถ้า remote ใหม่กว่า local ให้ดึงลงมา
-      const localTime = parseInt(localStorage.getItem('fc_last_sync') || '0');
-      
-      if(remoteTime > localTime){
-        // Remote ใหม่กว่า → ดึงลงมา
-        if(remote.credits) credits = remote.credits;
-        if(remote.rents)   rents   = remote.rents;
-        if(remote.stocks)  stocks  = remote.stocks;
-        if(remote.miscs)   miscs   = remote.miscs;
-        if(remote.income)  income  = remote.income;
-        if(remote.paid)    paid    = remote.paid;
-        saveAll();
-        localStorage.setItem('fc_last_sync', remoteTime.toString());
-        renderAll();
-        showSyncBar('☁️ ดึงข้อมูลล่าสุดจาก Cloud แล้ว');
-      } else {
-        // Local ใหม่กว่า → push ขึ้น
-        await pushToSupabase();
-        showSyncBar('✅ Sync ขึ้น Cloud สำเร็จ');
-      }
-    } else {
-      // ยังไม่มีข้อมูลบน Cloud → push ขึ้นเลย
-      await pushToSupabase();
-      showSyncBar('✅ บันทึกขึ้น Cloud สำเร็จ');
-    }
-  } catch(err) {
-    showSyncBar('❌ Sync ไม่สำเร็จ: ' + err.message, '#e74c3c');
+async function fetchSupabaseData(){
+  const res = await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?id=eq.${encodeURIComponent(SB_ID)}&select=*`, {
+    method:'GET',
+    headers: sbHeaders()
+  });
+  if(!res.ok){
+    const err = await res.text();
+    throw new Error(err.substring(0,140) || ('HTTP '+res.status));
   }
-  btn.textContent = '☁️ Sync';
-  btn.disabled = false;
+  const rows = await res.json();
+  return rows && rows.length ? rows[0] : null;
 }
 
 async function pushToSupabase(){
   const now = new Date().toISOString();
-  const payload = { id:'main', credits, rents, stocks, miscs, income, paid, updated_at: now };
-  const res = await fetch(SB_URL + '/rest/v1/finance_data', {
-    method: 'POST',
-    headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+  const payload = { id:SB_ID, credits, rents, stocks, miscs, income, paid, updated_at: now };
+  const res = await fetch(`${SB_URL}/rest/v1/${SB_TABLE}`, {
+    method:'POST',
+    headers: sbHeaders({ 'Prefer':'resolution=merge-duplicates,return=minimal' }),
     body: JSON.stringify(payload)
   });
   if(!res.ok){
     const err = await res.text();
-    throw new Error(err.substring(0,80));
+    throw new Error(err.substring(0,140) || ('HTTP '+res.status));
   }
   localStorage.setItem('fc_last_sync', new Date(now).getTime().toString());
 }
 
-// Auto-sync ทุกครั้งที่มีการบันทึกข้อมูล
-const _origSaveAll = saveAll;
-// Override saveAll to auto-push
-function saveAll(){
-  ss('fc_credits',credits);ss('fc_rents',rents);ss('fc_stocks',stocks);
-  ss('fc_miscs',miscs);ss('fc_income',income);ss('fc_paid',paid);
-  // push to supabase silently
-  pushToSupabase().catch(()=>{});
+async function loadFromSupabase(){
+  const remote = await fetchSupabaseData();
+  if(remote){
+    applyData(remote);
+    persistLocal();
+    localStorage.setItem('fc_last_sync', new Date(remote.updated_at || Date.now()).getTime().toString());
+    showSyncBar('☁️ โหลดข้อมูลจาก Supabase แล้ว');
+  }else{
+    applyData({});
+    persistLocal();
+    showSyncBar('☁️ ยังไม่มีข้อมูลใน Supabase — เริ่มตารางว่าง');
+  }
+  renderAll();
 }
 
-// Auto-sync ตอนเปิดแอป
-window.addEventListener('load', async ()=>{
+function saveAll(){
+  persistLocal();
+  if(isBooting)return;
+  pushToSupabase().catch(err=>{
+    console.error('Supabase save error:',err);
+    showSyncBar('❌ บันทึก Supabase ไม่สำเร็จ: '+err.message, '#e74c3c');
+  });
+}
+
+async function syncData(){
+  const btn = document.getElementById('syncBtn');
+  if(btn){btn.textContent='⏳ กำลัง Sync...';btn.disabled=true;}
   try{
-    const getRes = await fetch(SB_URL + '/rest/v1/finance_data?id=eq.main', {
-      headers: sbHeaders()
-    });
-    const rows = await getRes.json();
-    if(rows && rows.length > 0){
-      const remote = rows[0];
-      const remoteTime = new Date(remote.updated_at).getTime();
-      const localTime = parseInt(localStorage.getItem('fc_last_sync') || '0');
-      if(remoteTime > localTime){
-        if(remote.credits) credits = remote.credits;
-        if(remote.rents)   rents   = remote.rents;
-        if(remote.stocks)  stocks  = remote.stocks;
-        if(remote.miscs)   miscs   = remote.miscs;
-        if(remote.income)  income  = remote.income;
-        if(remote.paid)    paid    = remote.paid;
-        saveAll();
-        localStorage.setItem('fc_last_sync', remoteTime.toString());
-        renderAll();
-        showSyncBar('☁️ โหลดข้อมูลล่าสุดจาก Cloud แล้ว');
-      }
-    }
-  }catch(e){}
-});
+    // กด Sync = บันทึกข้อมูลบนหน้าจอปัจจุบันขึ้น Supabase
+    await pushToSupabase();
+    showSyncBar('✅ Sync ขึ้น Supabase สำเร็จ');
+  }catch(err){
+    console.error(err);
+    showSyncBar('❌ Sync ไม่สำเร็จ: '+err.message, '#e74c3c');
+  }finally{
+    if(btn){btn.textContent='☁️ Sync';btn.disabled=false;}
+  }
+}
 
 // ── RENDER ALL ──
 function renderAll(){
   updateDataLists();
-  renderPal('credit','cPal');renderPal('rent','rPal');renderPal('stock','sPal');renderPal('misc','mPal'+(document.getElementById('mPal')?'':'x'));
+  renderPal('credit','cPal');renderPal('rent','rPal');renderPal('stock','sPal');
   renderSidebarLists();renderIncomeList();renderCalendar();
 }
 
-// ── DEMO ──
-function loadDemo(){
-  credits=[
-    {id:1001,name:'KBank Visa',amount:3500,dueDay:5,color:'#c0392b'},
-    {id:1002,name:'SCB Platinum',amount:2800,dueDay:18,color:'#2980b9'},
-  ];
-  rents=[
-    {id:2001,name:'เซ็นทรัล ลาดพร้าว',amount:8500,dueDay:1,color:'#8e44ad',note:'ชั้น 1 โซน B'},
-    {id:2002,name:'ฟิวเจอร์พาร์ค',amount:6000,dueDay:10,color:'#9b59b6',note:'ชั้น G'},
-  ];
-  const dim=dim_(cy,cm);
-  stocks=[{id:3001,name:'ของเล่นไม้ ล็อต A',amount:12000,day:Math.min(8,dim),month:cm,year:cy,color:'#d35400'}];
-  miscs=[
-    {id:4001,name:'ค่าอาหาร',amount:3200,day:Math.min(15,dim),month:cm,year:cy,cat:'food',note:''},
-    {id:4002,name:'ค่าเดินทาง',amount:1500,day:Math.min(20,dim),month:cm,year:cy,cat:'travel',note:''},
-  ];
-  [[3,850],[5,1200],[7,450],[9,2200],[11,680],[13,1500],[15,900],[17,1100],[19,750],[21,1800],[23,960],[25,1400],[27,820],[29,1100]]
-    .forEach(([d,a])=>{if(d<=dim)income[dk(cy,cm,d)]={amount:a,note:'ขายของ'};});
-  saveAll();renderAll();
+// ── INIT: โหลดจาก Supabase เท่านั้น ไม่โหลด demo ──
+async function initApp(){
+  renderPal('credit','cPal');renderPal('rent','rPal');renderPal('stock','sPal');
+  try{
+    await loadFromSupabase();
+  }catch(err){
+    console.error('Supabase load error:',err);
+    applyData({});
+    renderAll();
+    showSyncBar('❌ โหลด Supabase ไม่สำเร็จ: '+err.message, '#e74c3c');
+  }finally{
+    isBooting=false;
+  }
 }
-
-// ── INIT ──
-renderAll();
-const hasAnyData=credits.length>0||rents.length>0||stocks.length>0||miscs.length>0||Object.keys(income).length>0;
-if(!hasAnyData)loadDemo();
+initApp();
+window.addEventListener('resize',()=>{if(window.innerWidth>=700)closeSidebar();});
 </script>
 
 </body>
